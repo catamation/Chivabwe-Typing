@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Unicode Phonetic Typer</title>
+
+<style>
+    @font-face {
+            font-family: font;
+            src: url('font.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+        }
+body{
+    margin:0;
+    font-family:font;
+    background:linear-gradient(135deg,#e6ecf5,#d4e0f5);
+    display:flex;
+    justify-content:center;
+}
+
+.container{
+    width:100%;
+    max-width:900px;
+    padding:20px;
+}
+
+h2{
+    text-align:center;
+}
+
+textarea{
+    width:100%;
+    padding:12px;
+    font-size:18px;
+    border-radius:8px;
+    border:2px solid #ccc;
+    resize:vertical;
+    box-sizing:border-box;
+}
+
+#output{
+    margin-top:15px;
+    padding:15px;
+    min-height:150px;
+    border-radius:10px;
+    border:2px solid #3498db;
+    background:white;
+    font-size:28px;
+    white-space:pre-wrap;
+    word-break:break-word;
+    font-family: font;
+}
+
+.controls{
+    margin-top:15px;
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:10px;
+}
+
+button{
+    padding:8px;
+    border:none;
+    border-radius:6px;
+    background:#3498db;
+    color:white;
+    cursor:pointer;
+}
+
+button:hover{
+    background:#2980b9;
+}
+
+#mobileKeyboard{
+    display:none;
+    margin-top:20px;
+    grid-template-columns:repeat(6,1fr);
+    gap:5px;
+}
+
+.key{
+    padding:10px;
+    background:#eee;
+    border-radius:6px;
+    text-align:center;
+    cursor:pointer;
+}
+
+.key:active{
+    background:#ccc;
+}
+
+@media (pointer:coarse){
+    #mobileKeyboard{
+        display:grid;
+    }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<h2>Unicode Phonetic Typer</h2>
+
+<textarea id="input" placeholder="Type phonetics..."></textarea>
+
+<div id="output"></div>
+
+<div class="controls">
+<button onclick="copyOutput()">Copy</button>
+<button onclick="toggleMode()">Switch Mode</button>
+
+<label>Letter Space
+<input type="range" min="0" max="20" value="0"
+oninput="output.style.letterSpacing=this.value+'px'">
+</label>
+
+<label>Line Space
+<input type="range" min="1" max="3" step="0.1" value="1.2"
+oninput="output.style.lineHeight=this.value">
+</label>
+
+<label>Color
+<input type="color"
+oninput="output.style.color=this.value">
+</label>
+</div>
+
+<label>Font Size
+<input type="range" min="20" max="1000" value="32"
+oninput="changeFontSize(this.value)">
+</label>
+
+<label>Display Zoom
+<input type="range" min="0.5" max="2" step="0.1" value="1"
+oninput="changeDisplaySize(this.value)">
+</label>
+
+<div id="mobileKeyboard">
+<div class="key" onclick="insertSeparator()">Separator</div>
+</div>
+
+</div>
+
+<script>
+
+// ======================================
+// CONFIG
+// ======================================
+
+const CHAR_SEPARATOR = "\uE001"; // invisible character separator
+
+// Positional vowels
+const positionalVowels = {
+    "i": { init: "\uE16E", medi: "\uE16F" },
+    "o": { init: "\uE3F1", medi: "\uE3F0" },
+    "u": { init: "\uE4CF", medi: "\uE4CE" }
+};
+
+// ======================================
+// FULL CHARACTER MAP
+// (PASTE YOUR COMPLETE MAP INSIDE HERE)
+// DO NOT include separator or *.init / *.medi
+// ======================================
+
+const charMap = {
+
+     "nhi":"\uE2E3",
+     "0": "\uE002", "1": "\uE007", "2": "\uE00A", "3": "\uE00D", "4": "\uE010", "5": "\uE013", "6": "\uE016", "7": "\uE017", "8": "\uE018", "9": "\uE019", "11": "\uE008", "22": "\uE00B", "33": "\uE00E", "44": "\uE011", "55": "\uE014", "99": "\uE01A", "111": "\uE009", "222": "\uE00C", "333": "\uE00F", "444": "\uE012", "555": "\uE015", "999": "\uE01B", "!": "\uE000", "separator": "\uE001", "00": "\uE003", "000": "\uE004", "0000": "\uE005", "00000": "\uE006", "a": "\uE01C", "asi": "\uE01D", "aso": "\uE01E", "b": "\uE01F", "ba": "\uE020", "baa": "\uE021", "bae": "\uE022", "bai": "\uE023", "bao": "\uE024", "bau": "\uE025", "be": "\uE026", "bea": "\uE027", "bee": "\uE028", "bei": "\uE029", "beo": "\uE02A", "beu": "\uE02B", "bg": "\uE02C", "bga": "\uE02D", "bge": "\uE02E", "bgi": "\uE02F", "bgo": "\uE030", "bgu": "\uE031", "bgw": "\uE032", "bgwa": "\uE033", "bgwe": "\uE034", "bgwi": "\uE035", "bgwo": "\uE036", "bgwu": "\uE037", "bh": "\uE038", "bha": "\uE039", "bhaa": "\uE03A", "bhae": "\uE03B", "bhai": "\uE03C", "bhao": "\uE03D", "bhau": "\uE03E", "bhe": "\uE03F", "bhea": "\uE040", "bhee": "\uE041", "bhei": "\uE042", "bheo": "\uE043", "bheu": "\uE044", "bhi": "\uE045", "bhia": "\uE046", "bhie": "\uE047", "bhii": "\uE048", "bhio": "\uE049", "bhiu": "\uE04A", "bho": "\uE04B", "bhoa": "\uE04C", "bhoe": "\uE04D", "bhoi": "\uE04E", "bhoo": "\uE04F", "bhou": "\uE050", "bhu": "\uE051", "bhua": "\uE052", "bhue": "\uE053", "bhui": "\uE054", "bhuo": "\uE055", "bhuu": "\uE056", "bi": "\uE057", "bia": "\uE058", "bie": "\uE059", "bii": "\uE05A", "bio": "\uE05B", "biu": "\uE05C", "boa": "\uE05D", "boe": "\uE05E", "boi": "\uE05F", "boo": "\uE060", "bou": "\uE061", "bu": "\uE062", "bua": "\uE063", "bue": "\uE064", "bui": "\uE065", "buo": "\uE066", "buu": "\uE067", "bv": "\uE068", "bva": "\uE069", "bvaa": "\uE06A", "bvae": "\uE06B", "bvai": "\uE06C", "bvao": "\uE06D", "bvau": "\uE06E", "bve": "\uE06F", "bvea": "\uE070", "bvee": "\uE071", "bvei": "\uE072", "bveo": "\uE073", "bveu": "\uE074", "bvi": "\uE075", "bvia": "\uE076", "bvie": "\uE077", "bvii": "\uE078", "bvio": "\uE079", "bviu": "\uE07A", "bvo": "\uE07B", "bvoa": "\uE07C", "bvoe": "\uE07D", "bvoi": "\uE07E", "bvoo": "\uE07F", "bvou": "\uE080", "bvu": "\uE081", "bvua": "\uE082", "bvue": "\uE083", "bvui": "\uE084", "bvuo": "\uE085", "bvuu": "\uE086", "bw": "\uE087", "bwa": "\uE088", "bwe": "\uE089", "bwi": "\uE08A", "bwo": "\uE08B", "bwu": "\uE08C", "/c": "\uE08D", "c": "\uE08E", "/ca": "\uE08F", "ca": "\uE090", "/ce": "\uE091", "ce": "\uE092", "ch": "\uE093", "cha": "\uE094", "che": "\uE095", "chi": "\uE096", "chk": "\uE097", "chka": "\uE098", "chke": "\uE099", "chki": "\uE09A", "chko": "\uE09D", "chku": "\uE09C", "chu": "\uE09E", "/ci": "\uE09F", "ci": "\uE0A0", "/co": "\uE0A1", "co": "\uE0A2", "/cu": "\uE0A3", "cu": "\uE0A4", "/cwa": "\uE0A5", "/cwe": "\uE0A6", "/cwi": "\uE0A7", "/cwo": "\uE0A8", "d": "\uE0A9", "da": "\uE0AA", "daa": "\uE0AB", "dae": "\uE0AC", "dai": "\uE0AD", "dao": "\uE0AE", "dau": "\uE0AF", "de": "\uE0B0", "dea": "\uE0B1", "dee": "\uE0B2", "dei": "\uE0B3", "deo": "\uE0B4", "deu": "\uE0B5", "dh": "\uE0B6", "dha": "\uE0B7", "dhe": "\uE0B8", "dhi": "\uE0B9", "dhl": "\uE0BA", "dhla": "\uE0BB", "dhle": "\uE0BC", "dhli": "\uE0BD", "dhlo": "\uE0BE", "dhlu": "\uE0BF", "dho": "\uE0C0", "dhu": "\uE0C1", "di": "\uE0C2", "dia": "\uE0C3", "die": "\uE0C4", "dii": "\uE0C5", "dio": "\uE0C6", "diu": "\uE0C7", "dj": "\uE0C8", "dja": "\uE0C9", "dje": "\uE0CA", "dji": "\uE0CB", "djo": "\uE0CC", "dju": "\uE0CD", "djw": "\uE0CE", "djwa": "\uE0CF", "djwe": "\uE0D0", "djwi": "\uE0D1", "djwo": "\uE0D2", "djwu": "\uE0D3", "dl": "\uE0D4", "dla": "\uE0D5", "dle": "\uE0D6", "dli": "\uE0D7", "dlo": "\uE0D8", "dlu": "\uE0D9", "do": "\uE0DA", "doa": "\uE0DB", "doe": "\uE0DC", "doi": "\uE0DD", "doo": "\uE0DE", "dou": "\uE0DF", "du": "\uE0E0", "dw": "\uE0E1", "dwa": "\uE0E2", "dwe": "\uE0E3", "dwi": "\uE0E4", "dwo": "\uE0E5", "dwu": "\uE0E6", "dy": "\uE0E7", "dya": "\uE0E8", "dyai": "\uE0E9", "dyao": "\uE0EA", "dye": "\uE0EB", "dyei": "\uE0EC", "dyi": "\uE0ED", "dyo": "\uE0EE", "dyu": "\uE0EF", "dyw": "\uE0F0", "dywa": "\uE0F1", "dywai": "\uE0F2", "dywao": "\uE0F3", "dywe": "\uE0F4", "dywei": "\uE0F5", "dywi": "\uE0F6", "dywo": "\uE0F7", "dywu": "\uE0F8", "dz": "\uE0F9", "dza": "\uE0FA", "dze": "\uE0FB", "dzh": "\uE0FC", "dzha": "\uE0FD", "dzhe": "\uE0FE", "dzhi": "\uE0FF", "dzho": "\uE100", "dzhu": "\uE101", "dzhw": "\uE102", "dzhwa": "\uE103", "dzhwe": "\uE104", "dzhwi": "\uE105", "dzhwo": "\uE106", "dzhwu": "\uE107", "dzi": "\uE108", "dzo": "\uE109", "dzu": "\uE10A", "dzv": "\uE10B", "dzva": "\uE10C", "dzve": "\uE10D", "dzvi": "\uE10E", "dzvo": "\uE10F", "dzvu": "\uE110", "dzw": "\uE111", "dzwa": "\uE112", "dzwe": "\uE113", "dzwi": "\uE114", "dzwo": "\uE115", "dzwu": "\uE116", "e": "\uE117", "f": "\uE118", "fa": "\uE119", "fe": "\uE11A", "fi": "\uE11B", "fo": "\uE11C", "fu": "\uE11D", "fw": "\uE11E", "fwa": "\uE11F", "fwe": "\uE120", "fwi": "\uE121", "fwo": "\uE122", "fwu": "\uE123", "g": "\uE124", "ga": "\uE125", "gai": "\uE126", "/gc": "\uE12D", "/gca": "\uE12E", "/gce": "\uE12F", "/gci": "\uE130", "/gco": "\uE131", "gcu": "\uE12C", "/gcu": "\uE132", "ge": "\uE133", "gei": "\uE134", "gh": "\uE135", "gha": "\uE136", "ghe": "\uE137", "ghi": "\uE138", "gho": "\uE139", "ghu": "\uE13A", "gi": "\uE13B", "go": "\uE13C", "/gq": "\uE13D", "/gqa": "\uE13E", "/gqe": "\uE13F", "/gqi": "\uE140", "/gqo": "\uE141", "/gqu": "\uE142", "gu": "\uE143", "gw": "\uE144", "gwa": "\uE145", "gwe": "\uE146", "gwi": "\uE147", "gwo": "\uE148", "gwu": "\uE149", "/gx": "\uE14A", "/gxa": "\uE14B", "/gxe": "\uE14C", "/gxi": "\uE14E", "/gxu": "\uE14F", "/gxw": "\uE150", "/gxwa": "\uE151", "/gxwe": "\uE152", "/gxwi": "\uE153", "/gxwo": "\uE154", "/gxwu": "\uE155", "h": "\uE156", "ha": "\uE157", "he": "\uE158", "hi": "\uE159", "hl": "\uE15A", "hla": "\uE15B", "hle": "\uE15C", "hli": "\uE15D", "hlo": "\uE15E", "hlu": "\uE15F", "hlw": "\uE160", "hlwa": "\uE161", "hlwe": "\uE162", "hlwi": "\uE163", "hlwo": "\uE164", "hlwu": "\uE165", "ho": "\uE166", "hu": "\uE167", "hw": "\uE168", "hwa": "\uE169", "hwe": "\uE16A", "hwi": "\uE16B", "hwo": "\uE16C", "hwu": "\uE16D", "i.init": "\uE16E", "i.medi": "\uE16F", "isa": "\uE170", "ise": "\uE171", "isha": "\uE172", "ishe": "\uE173", "ishi": "\uE174", "isho": "\uE175", "ishu": "\uE176", "ishwa": "\uE177", "ishwe": "\uE178", "ishwi": "\uE179", "ishwo": "\uE17A", "ishwu": "\uE17B", "isi": "\uE17C", "iso": "\uE17D", "isu": "\uE17E", "iswa": "\uE17F", "iswe": "\uE180", "iswi": "\uE181", "iswo": "\uE182", "iswu": "\uE183", "itshv": "\uE184", "itshva": "\uE185", "itshve": "\uE186", "itshvi": "\uE187", "itshvo": "\uE188", "itshvu": "\uE189", "itsv": "\uE18A", "itsva": "\uE18B", "itsve": "\uE18C", "itsvi": "\uE18D", "itsvo": "\uE18E", "itsvu": "\uE18F", "iwa": "\uE190", "iwawa": "\uE191", "iwe": "\uE192", "iwewe": "\uE193", "j": "\uE194", "ja": "\uE195", "je": "\uE196", "ji": "\uE197", "jo": "\uE198", "k": "\uE199", "ka": "\uE19A", "ke": "\uE19B", "kg": "\uE19C", "kga": "\uE19D", "kge": "\uE19E", "kgi": "\uE19F", "kgo": "\uE1A0", "kgu": "\uE1A1", "kgw": "\uE1A2", "kgwa": "\uE1A3", "kgwe": "\uE1A4", "kgwi": "\uE1A5", "kgwo": "\uE1A6", "kgwu": "\uE1A7", "kh": "\uE1A8", "kha": "\uE1A9", "kh e": "\uE1AA", "khe": "\uE1AB", "khee": "\uE1AC", "khi": "\uE1AD", "khie": "\uE1AE", "khl": "\uE1AF", "khla": "\uE1B0", "khle": "\uE1B1", "khli": "\uE1B2", "khlo": "\uE1B3", "khlu": "\uE1B4", "kho": "\uE1B5", "khoe": "\uE1B6", "khu": "\uE1B7", "khue": "\uE1B8", "khw": "\uE1B9", "khwa": "\uE1BA", "khwe": "\uE1BB", "khwi": "\uE1BC", "khwo": "\uE1BD", "khwu": "\uE1BE", "ko": "\uE1C6", "kl": "\uE1C0", "kla": "\uE1C1", "kle": "\uE1C2", "kli": "\uE1C3", "klo": "\uE1C4", "klu": "\uE1C5", "ku": "\uE1C7", "kw": "\uE1C8", "kwa": "\uE1C9", "kwe": "\uE1CA", "kwi": "\uE1CB", "kwo": "\uE1CC", "kwu": "\uE1CD", "l": "\uE1CE", "la": "\uE1CF", "le": "\uE1D0", "li": "\uE1D1", "lo": "\uE1D2", "lu": "\uE1D3", "lw": "\uE1D4", "lwa": "\uE1D5", "lwe": "\uE1D9", "lwi": "\uE1D7", "lwo": "\uE1D8", "ly": "\uE1DA", "lya": "\uE1DB", "lye": "\uE1DC", "lyi": "\uE1DD", "lyo": "\uE1DE", "lyu": "\uE1DF", "m": "\uE1E0", "ma": "\uE1E1", "mb": "\uE1E2", "mba": "\uE1E3", "mbe": "\uE1E4", "mbi": "\uE1E5", "mbo": "\uE1E6", "mbu": "\uE1E7", "mbw": "\uE1E8", "mbwa": "\uE1E9", "mbwe": "\uE1EA", "mbwi": "\uE1EB", "mbwo": "\uE1EC", "mbwu": "\uE1ED", "me": "\uE1EE", "mf": "\uE1EF", "mfa": "\uE1F0", "mfe": "\uE1F1", "mfi": "\uE1F2", "mfo": "\uE1F3", "mfu": "\uE1F4", "mh": "\uE1F5", "mha": "\uE1F6", "mhe": "\uE1F7", "mhi": "\uE1F8", "mhl": "\uE1F9", "mhla": "\uE1FA", "mhle": "\uE1FB", "mhli": "\uE1FC", "mhlo": "\uE1FD", "mhlu": "\uE1FE", "mho": "\uE1FF", "mhu": "\uE200", "mi": "\uE201", "mk": "\uE202", "mka": "\uE203", "mke": "\uE204", "mkh": "\uE205", "mkha": "\uE206", "mkhe": "\uE207", "mkhi": "\uE208", "mkho": "\uE209", "mkhu": "\uE20A", "mki": "\uE20B", "mko": "\uE20C", "mku": "\uE20D", "ml": "\uE20E", "mla": "\uE20F", "mle": "\uE210", "mli": "\uE211", "mlo": "\uE212", "mlu": "\uE213", "mo": "\uE214", "mp": "\uE215", "mpa": "\uE216", "mpe": "\uE217", "mph": "\uE218", "mpha": "\uE219", "mphe": "\uE21A", "mphi": "\uE21B", "mpho": "\uE21C", "mphu": "\uE21D", "mpi": "\uE21E", "mpo": "\uE21F", "mpu": "\uE220", "mu": "\uE221", "mv": "\uE222", "mva": "\uE223", "mve": "\uE224", "mvi": "\uE225", "mvo": "\uE226", "mvu": "\uE227", "mwa": "\uE228", "mwe": "\uE229", "mwi": "\uE22A", "mwo": "\uE22B", "mwu": "\uE22C", "mz": "\uE22D", "mza": "\uE22E", "mze": "\uE22F", "mzi": "\uE230", "mzo": "\uE231", "mzu": "\uE232", "mzw": "\uE233", "mzwa": "\uE234", "mzwe": "\uE235", "mzwi": "\uE236", "mzwo": "\uE237", "mzwu": "\uE238", "n": "\uE239", "na": "\uE23A", "naa": "\uE23B", "nae": "\uE23C", "nai": "\uE23D", "nao": "\uE23E", "nau": "\uE23F", "nc": "\uE240", "nca": "\uE241", "nce": "\uE242", "nci": "\uE243", "nco": "\uE244", "ncu": "\uE245", "ncw": "\uE246", "ncwa": "\uE247", "ncwe": "\uE248", "ncwi": "\uE249", "ncwo": "\uE24A", "ncwu": "\uE24B", "nd": "\uE24C", "nda": "\uE24D", "ndai": "\uE24E", "ndao": "\uE24F", "ndau": "\uE250", "nde": "\uE251", "ndei": "\uE252", "ndh": "\uE253", "ndha": "\uE254", "ndhe": "\uE255", "ndhi": "\uE256", "ndhl": "\uE257", "ndhla": "\uE258", "ndhle": "\uE259", "ndhli": "\uE25A", "ndhlo": "\uE25B", "ndhlu": "\uE25C", "ndhlw": "\uE25D", "ndhlwa": "\uE25E", "ndhlwe": "\uE25F", "ndhlwi": "\uE260", "ndhlwo": "\uE261", "ndhlwu": "\uE262", "ndho": "\uE263", "ndhu": "\uE264", "ndi": "\uE265", "ndio": "\uE266", "ndj": "\uE267", "ndja": "\uE268", "ndje": "\uE269", "ndji": "\uE26A", "ndjo": "\uE26B", "ndju": "\uE26C", "ndl": "\uE26D", "ndla": "\uE26E", "ndle": "\uE26F", "ndli": "\uE270", "ndlo": "\uE271", "ndlu": "\uE272", "ndlw": "\uE273", "ndlwa": "\uE274", "ndlwe": "\uE275", "ndlwi": "\uE276", "ndlwo": "\uE277", "ndlwu": "\uE278", "ndo": "\uE279", "ndoi": "\uE27A", "ndu": "\uE27B", "ndy": "\uE27C", "ndya": "\uE27D", "ndye": "\uE27E", "ndyi": "\uE27F", "ndyo": "\uE280", "ndyu": "\uE281", "ndz": "\uE282", "ndza": "\uE283", "ndze": "\uE284", "ndzi": "\uE285", "ndzo": "\uE286", "ndzu": "\uE287", "ndzv": "\uE288", "ndzva": "\uE289", "ndzve": "\uE28A", "ndzvi": "\uE28B", "ndzvo": "\uE28C", "ndzvu": "\uE28D", "ndzw": "\uE28E", "ndzwa": "\uE28F", "ndzwe": "\uE290", "ndzwi": "\uE291", "ndzwo": "\uE292", "ndzwu": "\uE293", "ne": "\uE294", "nea": "\uE295", "nee": "\uE296", "nei": "\uE297", "neo": "\uE298", "neu": "\uE299", "ng": "\uE2C3", "nga": "\uE29B", "ncg": "\uE29C", "ncga": "\uE29D", "ncge": "\uE29E", "ncgi": "\uE29F", "ncgo": "\uE2A0", "ncgu": "\uE2A1", "ncgw": "\uE2A2", "ncgwa": "\uE2A3", "ncgwe": "\uE2A4", "ncgwi": "\uE2A5", "ncgwo": "\uE2A6", "ncgwu": "\uE2A7", "nge": "\uE2A8", "ngh": "\uE2A9", "ngha": "\uE2AA", "nghe": "\uE2AB", "nghi": "\uE2AC", "ngho": "\uE2AD", "nghu": "\uE2AE", "ngi": "\uE2AF", "ngo": "\uE2B0", "ngq": "\uE2B1", "ngqa": "\uE2B2", "ngqe": "\uE2B3", "ngqh": "\uE2B4", "ngqha": "\uE2B5", "ngqhe": "\uE2B6", "ngqhi": "\uE2B7", "ngqho": "\uE2B8", "ngqhu": "\uE2B9", "ngqi": "\uE2BA", "ngqo": "\uE2BB", "ngqu": "\uE2BC", "ngqw": "\uE2BD", "ngqwa": "\uE2BE", "ngqwe": "\uE2BF", "ngqwi": "\uE2C0", "ngqwo": "\uE2C1", "ngqwu": "\uE2C2", "ngw": "\uE2C4", "ngwa": "\uE2C5", "ngwe": "\uE2C6", "ngwi": "\uE2C7", "ngwo": "\uE2C8", "ngwu": "\uE2C9", "ngx": "\uE2CA", "ngxa": "\uE2CB", "ngxe": "\uE2CC", "ngxi": "\uE2CD", "ngxo": "\uE2CE", "ngxu": "\uE2CF", "ngxw": "\uE2D0", "ngxwa": "\uE2D1", "ngxwe": "\uE2D2", "ngxwi": "\uE2D3", "ngxwo": "\uE2D4", "ngxwu": "\uE2D5", "nh": "\uE2D6", "nha": "\uE2D7", "nhaa": "\uE2D8", "nhae": "\uE2D9", "nhai": "\uE2DA", "nhao": "\uE2DB", "nhau": "\uE2DC", "nhe": "\uE2DD", "nhea": "\uE2DE", "nhee": "\uE2DF", "nhei": "\uE2E0", "nheo": "\uE2E1", "nheu": "\uE2E2", "nhia": "\uE2E4", "nhie": "\uE2E5", "nhii": "\uE2E6", "nhio": "\uE2E7", "nhiu": "\uE2E8", "nhl": "\uE2E9", "nhla": "\uE2EA", "nhle": "\uE2EB", "nhli": "\uE2EC", "nhlo": "\uE2ED", "nhlu": "\uE2EE", "nho": "\uE2EF", "nhoa": "\uE2F0", "nhoe": "\uE2F1", "nhoi": "\uE2F2", "nhoo": "\uE2F3", "nhou": "\uE2F4", "nhu": "\uE2F5", "nhua": "\uE2F6", "nhue": "\uE2F7", "nhui": "\uE2F8", "nhuo": "\uE2F9", "nhuu": "\uE2FA", "nia": "\uE2FC", "nie": "\uE2FD", "nii": "\uE2FE", "nio": "\uE2FF", "niu": "\uE300", "nj": "\uE301", "nja": "\uE302", "nje": "\uE303", "nji": "\uE304", "njo": "\uE305", "nju": "\uE306", "njw": "\uE307", "njwa": "\uE308", "njwe": "\uE309", "njwi": "\uE30A", "njwo": "\uE30B", "njwu": "\uE30C", "nk": "\uE30D", "nka": "\uE30E", "nke": "\uE30F", "nkg": "\uE310", "nkga": "\uE311", "nkge": "\uE312", "nkgi": "\uE313", "nkgo": "\uE314", "nkgu": "\uE315", "nkgw": "\uE316", "nkgwa": "\uE317", "nkgwe": "\uE318", "nkgwi": "\uE319", "nkgwo": "\uE31A", "nkgwu": "\uE31B", "nkh": "\uE31C", "nkha": "\uE31D", "nkhe": "\uE31E", "nkhi": "\uE31F", "nkhl": "\uE320", "nkhla": "\uE321", "nkhle": "\uE322", "nkhli": "\uE323", "nkhlo": "\uE324", "nkhlu": "\uE325", "nkho": "\uE326", "nkhu": "\uE327", "nki": "\uE328", "nkl": "\uE329", "nkla": "\uE32A", "nkle": "\uE32B", "nkli": "\uE32C", "nklo": "\uE32D", "nklu": "\uE32E", "nko": "\uE32F", "nku": "\uE330", "nkw": "\uE331", "nkwa": "\uE332", "nkwe": "\uE333", "nkwi": "\uE334", "nkwo": "\uE335", "nkwu": "\uE336", "nl": "\uE337", "nla": "\uE338", "nle": "\uE339", "nli": "\uE33A", "nlo": "\uE33B", "nlu": "\uE33C", "no": "\uE33D", "noa": "\uE33E", "noe": "\uE33F", "noi": "\uE340", "noo": "\uE514", "nou": "\uE515", "nq": "\uE343", "nqa": "\uE344", "nqe": "\uE345", "nqhw": "\uE346", "nqhwa": "\uE347", "nqhwe": "\uE348", "nqhwi": "\uE349", "nqhwo": "\uE34A", "nqhwu": "\uE34B", "nqi": "\uE34C", "nqo": "\uE34D", "nqu": "\uE34E", "nqw": "\uE34F", "nqwa": "\uE350", "nqwe": "\uE351", "nqwi": "\uE352", "nqwo": "\uE353", "nqwu": "\uE354", "ns": "\uE355", "nsa": "\uE356", "nse": "\uE357", "nsh": "\uE358", "nsha": "\uE359", "nshe": "\uE35A", "nshi": "\uE35B", "nsho": "\uE35C", "nshu": "\uE35D", "nshw": "\uE35E", "nshwa": "\uE35F", "nshwe": "\uE360", "nshwi": "\uE361", "nshwo": "\uE362", "nshwu": "\uE363", "nsi": "\uE364", "nso": "\uE365", "nsu": "\uE366", "nsw": "\uE367", "nswa": "\uE368", "nswe": "\uE369", "nswi": "\uE36A", "nswo": "\uE36B", "nswu": "\uE36C", "nt": "\uE36D", "nta": "\uE36E", "nte": "\uE36F", "nth": "\uE370", "ntha": "\uE371", "nthe": "\uE372", "nthi": "\uE373", "nthl": "\uE374", "nthla": "\uE375", "nthle": "\uE376", "nthli": "\uE377", "nthlo": "\uE378", "nthlu": "\uE379", "ntho": "\uE37A", "ntsh": "\uE37B", "ntsha": "\uE37C", "ntshe": "\uE37D", "ntshi": "\uE37E", "ntsho": "\uE37F", "ntshu": "\uE380", "nthu": "\uE381", "nti": "\uE382", "ntl": "\uE383", "ntla": "\uE384", "ntle": "\uE385", "ntli": "\uE386", "ntlo": "\uE387", "ntlu": "\uE388", "nto": "\uE389", "nts": "\uE38A", "ntsa": "\uE38B", "ntse": "\uE38C", "ntshw": "\uE38D", "ntshwa": "\uE38E", "ntshwe": "\uE38F", "ntshwi": "\uE390", "ntshwo": "\uE391", "ntshwu": "\uE392", "ntsi": "\uE393", "ntso": "\uE394", "ntsu": "\uE395", "ntsw": "\uE396", "ntswa": "\uE397", "ntswe": "\uE398", "ntswi": "\uE399", "ntswo": "\uE39A", "ntswu": "\uE39B", "ntu": "\uE39C", "ntw": "\uE39D", "ntwa": "\uE39E", "ntwe": "\uE39F", "ntwi": "\uE3A0", "ntwo": "\uE3A1", "ntwu": "\uE3A2", "nu": "\uE516", "nua": "\uE517", "nue": "\uE518", "nui": "\uE3A6", "nuo": "\uE3A7", "nuu": "\uE3A8", "nw": "\uE3A9", "nwa": "\uE3AA", "nwe": "\uE3AB", "nwi": "\uE3AC", "nwo": "\uE3AD", "nwu": "\uE3AE", "nx": "\uE3AF", "nxa": "\uE3B0", "nxe": "\uE3B1", "nxi": "\uE3B2", "nxo": "\uE3B3", "nxu": "\uE3B4", "nxw": "\uE3B5", "nxwa": "\uE3B6", "nxwe": "\uE3B7", "nxwi": "\uE3B8", "nxwo": "\uE3B9", "nxwu": "\uE3BA", "ny": "\uE3BB", "nya": "\uE3BC", "nye": "\uE3BD", "nyi": "\uE3BE", "nyo": "\uE3BF", "nyu": "\uE3C0", "nyw": "\uE3C1", "nywa": "\uE3C2", "nywe": "\uE3C3", "nywi": "\uE3C4", "nywo": "\uE3C5", "nywu": "\uE3C6", "nz": "\uE3C7", "nza": "\uE3C8", "nzaa": "\uE3C9", "nzae": "\uE3CA", "nzai": "\uE3CB", "nzao": "\uE3CC", "nzau": "\uE3CD", "nze": "\uE3CE", "nzea": "\uE3CF", "nzee": "\uE3D0", "nzei": "\uE3D1", "nzeo": "\uE3D2", "nzeu": "\uE3D3",
+    "o.medi": "\uE3F0", "o.init": "\uE3F1", "bo": "\uE3F2", "p": "\uE3F3", "pa": "\uE3F4", "pai": "\uE3F5", "pao": "\uE3F6", "pe": "\uE3F7", "pei": "\uE3F8", "po": "\uE40D", "pf": "\uE3FA", "pfa": "\uE3FB", "pfe": "\uE3FC", "pfi": "\uE3FD", "pfo": "\uE3FE", "pfu": "\uE3FF", "pfw": "\uE400", "pfwa": "\uE401", "pfwe": "\uE402", "pfwi": "\uE403", "pfwo": "\uE404", "pfwu": "\uE405", "ph": "\uE406", "pha": "\uE407", "phe": "\uE408", "phi": "\uE409", "pho": "\uE40A", "phu": "\uE40B", "pi": "\uE40C", "ps": "\uE40E", "psa": "\uE40F", "pse": "\uE410", "psi": "\uE411", "pso": "\uE412", "psu": "\uE413", "psw": "\uE414", "pswa": "\uE415", "pswe": "\uE416", "pswi": "\uE417", "pswo": "\uE418", "pswu": "\uE419", "pu": "\uE41A", "pw": "\uE41B", "pwa": "\uE41C", "pwe": "\uE41D", "pwi": "\uE41E", "pwo": "\uE41F", "pwu": "\uE420", "q": "\uE421", "qa": "\uE422", "qe": "\uE423", "qh": "\uE424", "qha": "\uE425", "qhe": "\uE426", "qhi": "\uE427", "qho": "\uE428", "qhu": "\uE429", "qhw": "\uE42A", "qhwa": "\uE42B", "qhwe": "\uE42C", "qhwi": "\uE42D", "qhwo": "\uE42E", "qhwu": "\uE42F", "qi": "\uE430", "qo": "\uE431", "qu": "\uE432", "qw": "\uE433", "qwa": "\uE434", "qwe": "\uE435", "qwi": "\uE436", "qwo": "\uE437", "qwu": "\uE438", "r": "\uE439", "ra": "\uE43A", "re": "\uE43B", "rei": "\uE43C", "rh": "\uE43D", "rha": "\uE43E", "rhe": "\uE43F", "rhi": "\uE440", "rho": "\uE441", "rhu": "\uE442", "ri": "\uE443", "ro": "\uE444", "ru": "\uE445", "rw": "\uE446", "rwa": "\uE447", "rwe": "\uE448", "rwi": "\uE449", "rwo": "\uE44A", "rwu": "\uE44B", "s": "\uE44C", "sa": "\uE44D", "sai": "\uE44E", "sao": "\uE44F", "sau": "\uE450", "se": "\uE451", "sei": "\uE452", "sh": "\uE453", "sha": "\uE454", "she": "\uE455", "shi": "\uE456", "sho": "\uE457", "shu": "\uE458", "shw": "\uE459", "shwa": "\uE45A", "shwe": "\uE45B", "shwi": "\uE45C", "shwo": "\uE45D", "shwu": "\uE45E", "si": "\uE45F", "so": "\uE460", "sou": "\uE461", "su": "\uE462", "suu": "\uE463", "sv": "\uE464", "sva": "\uE465", "sve": "\uE466", "svi": "\uE468", "svu": "\uE469", "svw": "\uE46A", "svwa": "\uE46B", "svwe": "\uE46C", "svwi": "\uE46D", "svwo": "\uE46E", "svwu": "\uE46F", "sw": "\uE470", "swa": "\uE471", "swe": "\uE472", "swi": "\uE473", "swo": "\uE474", "swu": "\uE475", "t": "\uE476", "ta": "\uE477", "tai": "\uE478", "tao": "\uE479", "te": "\uE47A", "tei": "\uE47B", "th": "\uE47C", "tha": "\uE47D", "the": "\uE47E", "thi": "\uE47F", "thl": "\uE480", "thla": "\uE481", "thle": "\uE482", "thli": "\uE483", "thlo": "\uE484", "thlu": "\uE485", "tho": "\uE486", "thu": "\uE487", "ti": "\uE488", "tj": "\uE489", "tja": "\uE48A", "tje": "\uE48B", "tjh": "\uE48C", "tjha": "\uE48D", "tjhe": "\uE48E", "tjhi": "\uE48F", "tjho": "\uE490", "tjhu": "\uE491", "tji": "\uE492", "tjo": "\uE493", "tju": "\uE494", "tl": "\uE495", "tla": "\uE496", "tle": "\uE497", "tli": "\uE498", "tlo": "\uE499", "tlu": "\uE49A", "to": "\uE49B", "ts": "\uE49C", "tsa": "\uE49D", "tse": "\uE49E", "tsh": "\uE49F", "tsha": "\uE4A0", "tshe": "\uE4A1", "tshi": "\uE4A2", "tsho": "\uE4A3", "tshu": "\uE4A4", "tshv": "\uE4A5", "tshva": "\uE4A6", "tshve": "\uE4A7", "tshvi": "\uE4A8", "tshvo": "\uE4A9", "tshvu": "\uE4AA", "tshw": "\uE4AB", "tshwa": "\uE4AC", "tshwe": "\uE4AD", "tshwi": "\uE4AE", "tshwo": "\uE4AF", "tshwu": "\uE4B0", "tsi": "\uE4B1", "tso": "\uE4B2", "tsu": "\uE4B3", "tsv": "\uE4B4", "tsva": "\uE4B5", "tsve": "\uE4B6", "tsvi": "\uE4B7", "tsvo": "\uE4B8", "tsvu": "\uE4B9", "tsw": "\uE4BA", "tswa": "\uE4BB", "tswe": "\uE4BC", "tswi": "\uE4BD", "tswo": "\uE4BE", "tswu": "\uE4BF", "tu": "\uE4C0", "tw": "\uE4C1", "twa": "\uE4C2", "twe": "\uE4C3", "twi": "\uE4C4", "two": "\uE4C5", "twu": "\uE4C6", "ty": "\uE4C7", "tya": "\uE4C8", "tye": "\uE4C9", "tyi": "\uE4CA", "tyo": "\uE4CB", "tyu": "\uE4CC", "u.medi": "\uE4CE", "u.init": "\uE4CF", "v": "\uE4D0", "va": "\uE4D1", "vaa": "\uE4D2", "vae": "\uE4D3", "vai": "\uE4D4", "vao": "\uE4D5", "vau": "\uE4D6", "ve": "\uE4D7", "vea": "\uE4D8", "vee": "\uE4D9", "vei": "\uE4DA", "veo": "\uE4DB", "veu": "\uE4DC", "vh": "\uE4DD", "vha": "\uE4DE", "vhaa": "\uE4DF", "vhae": "\uE4E0", "vhai": "\uE4E1", "vhao": "\uE4E2", "vhau": "\uE4E3", "vhe": "\uE4E4", "vhea": "\uE4E5", "vhee": "\uE4E6", "vhei": "\uE4E7", "vheo": "\uE4E8", "vheu": "\uE4E9", "vhi": "\uE4EA", "vhia": "\uE4EB", "vhie": "\uE4EC", "vhii": "\uE4ED", "vhio": "\uE4EE", "vhiu": "\uE4EF", "vho": "\uE4F0", "vhoa": "\uE4F1", "vhoe": "\uE4F2", "vhoi": "\uE4F3", "vhoo": "\uE4F4", "vhou": "\uE4F5", "vhu": "\uE4F6", "vhua": "\uE4F7", "vhue": "\uE4F8", "vhui": "\uE4F9", "vhuo": "\uE4FA", "vhuu": "\uE4FB", "vi": "\uE4FC", "via": "\uE4FD", "vie": "\uE4FE", "vii": "\uE4FF", "vio": "\uE500", "viu": "\uE501", "vo": "\uE502", "voa": "\uE503", "voe": "\uE504", "voi": "\uE505", "/gha": "\uE506", "/ghau": "\uE507", "/ghe": "\uE508", "/ghi": "\uE509", "/gho": "\uE50A", "/ghu": "\uE50B", "/gh": "\uE50C", "/ga": "\uE50D", "/gau": "\uE50E", "/ge": "\uE50F", "/gi": "\uE510", "/go": "\uE511", "/gu": "\uE512", "/g": "\uE513", "vui": "\uE519", "vuo": "\uE51A", "vuu": "\uE51B", "w": "\uE51C", "wa": "\uE51D", "we": "\uE51E", "wi": "\uE51F", "wo": "\uE520", "wu": "\uE521", "x": "\uE522", "xa": "\uE523", "xe": "\uE524", "xh": "\uE525", "xha": "\uE526", "xhe": "\uE527", "xhi": "\uE528", "xho": "\uE529", "xhu": "\uE52A", "xhw": "\uE52B", "xhwa": "\uE52C", "xhwe": "\uE52D", "xhwi": "\uE52E", "xhwo": "\uE52F", "xhwu": "\uE530", "xi": "\uE531", "xo": "\uE532", "xu": "\uE533", "xw": "\uE534", "xwa": "\uE535", "xwe": "\uE536", "xwi": "\uE537", "xwo": "\uE538", "xwu": "\uE539", "y": "\uE53A", "ya": "\uE53B", "ye": "\uE53C", "yi": "\uE53D", "yo": "\uE53E", "yu": "\uE53F", "z": "\uE540", "za": "\uE541", "ze": "\uE542", "zh": "\uE543", "zha": "\uE544", "zhe": "\uE545", "zhi": "\uE546", "zho": "\uE547", "zhu": "\uE548", "zi": "\uE549", "zo": "\uE54A", "zu": "\uE54B", "zv": "\uE54C", "zva": "\uE54D", "zve": "\uE54E", "zvi": "\uE54F", "zvo": "\uE550", "zvu": "\uE551", "zw": "\uE552", "zwa": "\uE553", "zwe": "\uE554", "zwi": "\uE555", "zwo": "\uE556", "zwu": "\uE557", "/cwu": "\uE558", "gqw": "\uE559", "gqwa": "\uE55A", "gqwe": "\uE55B", "gqwi": "\uE55C", "gqwo": "\uE55D", "gqwu": "\uE55E"
+
+
+    // ← keep pasting your full map here
+};
+
+
+
+// ======================================
+// TRIE ENGINE (FAST LONGEST MATCH)
+// ======================================
+
+class TrieNode {
+    constructor(){
+        this.children = {};
+        this.value = null;
+    }
+}
+
+function buildTrie(map){
+    const root = new TrieNode();
+
+    for(let key in map){
+
+        let node = root;
+
+        for(let char of key){
+            if(!node.children[char]){
+                node.children[char] = new TrieNode();
+            }
+            node = node.children[char];
+        }
+
+        node.value = map[key];
+    }
+
+    return root;
+}
+
+const trie = buildTrie(charMap);
+
+
+
+// ======================================
+// PHONETIC → UNICODE
+// ======================================
+
+function translatePhonetic(text){
+
+    let result = "";
+    let i = 0;
+
+    while(i < text.length){
+
+        // Separator ("/" key)
+        if(text[i] === "/"){
+            result += CHAR_SEPARATOR;
+            i++;
+            continue;
+        }
+
+        // Positional vowels
+        if(positionalVowels[text[i]]){
+
+            let isStart =
+                i === 0 ||
+                text[i-1] === CHAR_SEPARATOR ||
+                !/[a-zA-Z]/.test(text[i-1]);
+
+            const vowel = positionalVowels[text[i]];
+
+            result += isStart ? vowel.init : vowel.medi;
+            i++;
+            continue;
+        }
+
+        // Trie matching
+        let node = trie;
+        let j = i;
+        let lastMatch = null;
+        let lastIndex = i;
+
+        while(j < text.length && node.children[text[j]]){
+            node = node.children[text[j]];
+            if(node.value){
+                lastMatch = node.value;
+                lastIndex = j + 1;
+            }
+            j++;
+        }
+
+        if(lastMatch){
+            result += lastMatch;
+            i = lastIndex;
+        } else {
+            result += text[i];
+            i++;
+        }
+    }
+
+    return result;
+}
+
+
+
+// ======================================
+// UNICODE → PHONETIC
+// ======================================
+
+const reverseMap = {};
+for(let key in charMap){
+    reverseMap[charMap[key]] = key;
+}
+
+function translateUnicode(text){
+
+    let result = "";
+
+    for(let char of text){
+
+        if(char === CHAR_SEPARATOR){
+            continue; // invisible
+        }
+
+        if(reverseMap[char]){
+            result += reverseMap[char];
+        }
+        else if(char === positionalVowels.i.init ||
+                char === positionalVowels.i.medi){
+            result += "i";
+        }
+        else if(char === positionalVowels.o.init ||
+                char === positionalVowels.o.medi){
+            result += "o";
+        }
+        else if(char === positionalVowels.u.init ||
+                char === positionalVowels.u.medi){
+            result += "u";
+        }
+        else{
+            result += char;
+        }
+    }
+
+    return result;
+}
+
+
+
+// ======================================
+// UI CONTROLS
+// ======================================
+
+let mode = "phonetic";
+
+const input = document.getElementById("input");
+const output = document.getElementById("output");
+
+input.addEventListener("input", updateOutput);
+
+function updateOutput(){
+
+    let result =
+        mode === "phonetic"
+        ? translatePhonetic(input.value)
+        : translateUnicode(input.value);
+
+    // hide separator visually
+    output.innerText = result.replaceAll(CHAR_SEPARATOR,"");
+}
+
+function toggleMode(){
+    mode = mode === "phonetic" ? "unicode" : "phonetic";
+    updateOutput();
+}
+
+function copyOutput(){
+    navigator.clipboard.writeText(output.innerText);
+}
+
+function insertSeparator(){
+    input.value += "/";
+    updateOutput();
+}
+
+// REAL FONT SIZE (no transform scaling)
+function setFontSize(value){
+    output.style.fontSize = value + "px";
+}
+
+// Fullscreen mode
+function toggleFullscreen(){
+    if(!document.fullscreenElement){
+        document.documentElement.requestFullscreen();
+    } else {
+        document.exitFullscreen();
+    }
+}
+
+</script>
+
+</body>
+</html>
